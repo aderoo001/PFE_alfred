@@ -1,0 +1,32 @@
+<launch>
+  <arg name="open_rviz" default="true"/>
+
+  <!-- manipulation bringup -->
+  <include file="$(find turtlebot3_manipulation_bringup)/launch/turtlebot3_manipulation_bringup.launch"/>
+
+  <!-- slam -->
+  <include file="$(find turtlebot3_manipulation_slam)/launch/slam.launch">
+    <arg name="open_rviz" value="false" />
+  </include>
+
+  <!-- move_base -->
+  <include file="$(find turtlebot3_navigation)/launch/move_base.launch"/>
+
+  <!-- amcl -->
+  <include file="$(find turtlebot3_navigation)/launch/amcl.launch"/>
+
+  <!-- moveit -->
+  <include file="$(find turtlebot3_manipulation_moveit_config)/launch/move_group.launch"/>
+
+  <!-- rviz -->
+  <group if="$(arg open_rviz)">
+    <node pkg="rviz" type="rviz" name="rviz" required="true"
+          args="-d $(find alfred)/rviz/alfred.rviz"/>
+  </group>
+
+  <!-- alfred_vision -->
+  <node pkg="alfred" type="alfred_vision.py" name="alfred_vision"/>
+
+  <!-- alfred_tf_broadcast -->
+  <node pkg="alfred" type="alfred_tf_broadcaster.py" name="alfred_tf_broadcast"/>
+</launch>
