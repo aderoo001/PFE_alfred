@@ -10,43 +10,24 @@ import numpy as np
 
 from functools import partial
 from cv_bridge import CvBridge
-from tf.transformations import translation_matrix, quaternion_matrix, concatenate_matrices
 
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 from nav_msgs.srv import GetMap
 
-TARGET_FRAME = 'map'
 PATH = '/home/alexis/catkin_ws/src/alfred'
+
+TARGET_FRAME = 'map'
+
+CAMERA_MATRIX = np.zeros((3, 3))
+DISTORTION_MATRIX = np.zeros((1, 5))
+
 IS_LOCKED = False
+GOT_CAMERA_INFO = False
+
 ID = 1
 SEQ = 0
 MARKER_SIZE = 0.04
-
-
-def calibrate_camera():
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-    objp = np.zeros((6 * 7, 3), np.float32)
-    objp[:, :2] = np.mgrid[0:7, 0:6].T.reshape(-1, 2)
-
-    objpoints = []
-    imgpoints = []
-    images = glob.glob(PATH + '/images/*.jpg')
-
-    for fname in images:
-        img = cv2.imread(fname)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-        ret, corners = cv2.findChessboardCorners(gray, (7, 6), None)
-
-        if ret == True:
-            objpoints.append(objp)
-            corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
-            imgpoints.append(corners2)
-
-    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-    return mtx, dist
 
 
 def is_locked(msg):
@@ -64,7 +45,7 @@ def get_stamped_pose(translation, rotation):
     return pose
 
 
-def image_analyser(msg, mtx, dist, detector, publisher):
+def image_analyser(msg, detector, publisher):
     global IS_LOCKED
     global SEQ
 
@@ -86,8 +67,8 @@ def image_analyser(msg, mtx, dist, detector, publisher):
     if ids is not None:
         for i in range(0, len(ids)):
             if ids[i][0] == ID:
-                rvecs, tvecs, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], MARKER_SIZE, mtx,
-                                                                                 dist)
+                rvecs, tvecs, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], MARKER_SIZE, CAMERA_MATRIX,
+                                                                                 DISTORTION_MATRIX)
                 coef = 10
                 tvec = np.divide(np.divide(tvecs[0, 0], res), coef)
                 tvec = np.flip(tvec)
@@ -104,9 +85,18 @@ def image_analyser(msg, mtx, dist, detector, publisher):
     rospy.loginfo(object_pose)
 
 
-def alfred_vision():
-    mtx, dist = calibrate_camera()
+def camera_info_callback(msg):
+    global GOT_CAMERA_INFO, CAMERA_MATRIX, DISTORTION_MATRIX
+    DISTORTION_MATRIX = np.array(msg.D)
 
+    for i, row in enumerate(CAMERA_MATRIX):
+        for j, elmt in enumerate(row):
+            CAMERA_MATRIX[i, j] = msg.K[i*3+j]
+
+    GOT_CAMERA_INFO = True
+
+
+def alfred_vision():
     pub = rospy.Publisher('/alfred/target_position', PoseStamped, queue_size=10)
 
     dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
@@ -115,10 +105,17 @@ def alfred_vision():
 
     rospy.init_node('alfred_vision', anonymous=True)
 
-    image_analyser_partial = partial(image_analyser, mtx=mtx, dist=dist, detector=detector, publisher=pub)
+    sub = rospy.Subscriber('/camera/camera_info', CameraInfo, camera_info_callback)
+
+    image_analyser_partial = partial(image_analyser, detector=detector, publisher=pub)
     rospy.Subscriber("/camera/image", Image, image_analyser_partial)
 
-    rospy.spin()
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        if GOT_CAMERA_INFO:
+            sub.unregister()
+
+        rate.sleep()
 
 
 if __name__ == '__main__':
