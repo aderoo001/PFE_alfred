@@ -4,11 +4,11 @@ import rospy
 import actionlib
 import tf
 
-from move_base_msgs.msg import MoveBaseAction
-from move_base_msgs.msg import MoveBaseGoal
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import Bool
 
 IS_FOUND = False
-TARGET_FRAME = 'goal_link'
+TARGET_FRAME = 'goal_frame'
 MAP_FRAME = 'map'
 SEQ = 0
 
@@ -17,7 +17,10 @@ def alfred_navigation():
     global IS_FOUND
     global SEQ
 
+    pub = rospy.Publisher('/alfred/is_catchable', Bool, queue_size=10)
+
     rospy.init_node('alfred_navigation')
+    rate = rospy.Rate(30)
 
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     client.wait_for_server()
@@ -47,7 +50,12 @@ def alfred_navigation():
             client.send_goal(goal)
             client.wait_for_result()
 
+            is_catchable = Bool()
+            is_catchable.data = True
+            pub.publish(is_catchable)
+
             IS_FOUND = True
+        rate.sleep()
 
 
 if __name__ == '__main__':

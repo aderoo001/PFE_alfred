@@ -6,11 +6,11 @@ import tf
 from geometry_msgs.msg import PoseStamped
 
 IS_FOUND = False
-CAMERA_FRAME = 'camera_link'
+CAMERA_FRAME = 'camera_rgb_frame'
 PARENT_FRAME = 'map'
 TARGET_FRAME = 'target_link'
-GOAL_FRAME = 'goal_link'
-GRIP_FRAME = 'grip_link'
+GOAL_FRAME = 'goal_frame'
+GRIP_FRAME = 'grip_frame'
 
 
 def send_transform(trans, rot, parent):
@@ -18,7 +18,7 @@ def send_transform(trans, rot, parent):
 
     br.sendTransform(trans, rot, rospy.Time.now(), TARGET_FRAME, parent)
     br.sendTransform((-0.15, 0.02, 0.00), (0, 0, 0, 1), rospy.Time.now(), GOAL_FRAME, TARGET_FRAME)
-    br.sendTransform((-0.15, 0.02, -0.05), (0, 0, 0, 1), rospy.Time.now(), GRIP_FRAME, TARGET_FRAME)
+    br.sendTransform((0.02, 0.02, 0.02), (0, 0, 0, 1), rospy.Time.now(), GRIP_FRAME, TARGET_FRAME)
 
 
 def handle_target_pose(msg):

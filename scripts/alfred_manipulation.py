@@ -8,48 +8,53 @@ import moveit_commander
 from functools import partial
 
 from std_msgs.msg import Bool
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose
 
 PARENT_FRAME = 'map'
-TARGET_FRAME = 'grip_link'
+TARGET_FRAME = 'grip_frame'
 
+IS_CATCHABLE = False
 
 def move_to_pose(msg, listener, move_group):
-    if msg.data:
+    global IS_CATCHABLE
+    IS_CATCHABLE = msg.data
+
+    if IS_CATCHABLE:
         try:
             (trans, rot) = listener.lookupTransform(PARENT_FRAME, TARGET_FRAME, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
 
-        pose_goal = PoseStamped()
-        pose_goal.header.frame_id = "base_link"
-        pose_goal.position.x = trans[0]
-        pose_goal.position.y = trans[1]
-        pose_goal.position.z = trans[2]
+        pose_goal = Pose()
+        pose_goal.position.x = 0.25
+        pose_goal.position.y = 0
+        pose_goal.position.z = 0.15
 
         # quaternion = tf.transformations.quaternion_from_euler(0, 180, 0)
         # pose_goal.orientation.x = 0#quaternion[0]
-        # pose_goal.orientation.y = 0#quaternion[1]
+        pose_goal.orientation.y = 0#quaternion[1]
         # pose_goal.orientation.z = 0#quaternion[2]
-        # pose_goal.orientation.w = 1#quaternion[3]
+        pose_goal.orientation.w = 1#quaternion[3]
 
         rospy.loginfo(pose_goal)
 
-        move_group.set_pose_reference_frame("base_link")
+        move_group.set_pose_reference_frame(PARENT_FRAME)
         move_group.set_pose_target(pose_goal)
 
-        plan = move_group.plan()
+        # plan = move_group.plan()
+        #
+        # move_group.execute(plan)
 
-        move_group.execute(plan)
-
-        # success = move_group.go(wait=True)
-        # move_group.stop()
-        # move_group.clear_pose_targets()
+        success = move_group.go(wait=True)
+        if success :
+            IS_CATCHABLE = False
+        move_group.stop()
+        move_group.clear_pose_targets()
 
 
 def alfred_manipulation():
     moveit_commander.roscpp_initialize(sys.argv)
-    rospy.init_node('alfred_navigation')
+    rospy.init_node('alfred_manipulation')
 
     robot = moveit_commander.RobotCommander()
     scene = moveit_commander.PlanningSceneInterface()

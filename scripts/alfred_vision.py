@@ -49,30 +49,30 @@ def image_analyser(msg, detector, publisher):
     global IS_LOCKED
     global SEQ
 
-    res = rospy.ServiceProxy('dynamic_map', GetMap)().map.info.resolution
-
-    t = rospy.Time(0)
-    listener = tf.TransformListener()
-    listener.waitForTransform(TARGET_FRAME, 'camera_link', t, rospy.Duration(1))
-
     bridge = CvBridge()
     img = bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
     object_pose = None
 
     start = time.time()
 
-    (corners, ids, rejected) = detector.detectMarkers(img)
+    (corners, ids, rejected) = detector.detectMarkers(gray)
+    print(ids)
+    print(corners)
 
     if ids is not None:
         for i in range(0, len(ids)):
             if ids[i][0] == ID:
                 rvecs, tvecs, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], MARKER_SIZE, CAMERA_MATRIX,
                                                                                  DISTORTION_MATRIX)
-                coef = 10
-                tvec = np.divide(np.divide(tvecs[0, 0], res), coef)
-                tvec = np.flip(tvec)
-                rvec = tf.transformations.quaternion_from_euler(rvecs[0, 0, 0], rvecs[0, 0, 1], rvecs[0, 0, 2])
+
+                tvec = tvecs[0, 0]
+                print(tvec)
+                # tvec = np.flip(tvec)
+                tvec = [tvec[2], -tvec[0], -tvec[1]]
+                print(tvec)
+                rvec = tf.transformations.quaternion_from_euler(0, 0, -rvecs[0, 0, 2])
 
                 object_pose = get_stamped_pose(tvec, rvec)
 
@@ -110,7 +110,7 @@ def alfred_vision():
     image_analyser_partial = partial(image_analyser, detector=detector, publisher=pub)
     rospy.Subscriber("/camera/image", Image, image_analyser_partial)
 
-    rate = rospy.Rate(10)
+    rate = rospy.Rate(30)
     while not rospy.is_shutdown():
         if GOT_CAMERA_INFO:
             sub.unregister()
