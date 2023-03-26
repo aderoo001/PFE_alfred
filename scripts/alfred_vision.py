@@ -1,19 +1,16 @@
 #!/usr/bin/env python
-from builtins import print
-
 import rospy
 import cv2
 import time
-import glob
 import tf
 import numpy as np
 
 from functools import partial
 from cv_bridge import CvBridge
 
+from std_msgs.msg import Bool
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
-from nav_msgs.srv import GetMap
 
 PATH = '/home/alexis/catkin_ws/src/alfred'
 
@@ -22,17 +19,12 @@ TARGET_FRAME = 'map'
 CAMERA_MATRIX = np.zeros((3, 3))
 DISTORTION_MATRIX = np.zeros((1, 5))
 
-IS_LOCKED = False
+IS_ALLOWED = False
 GOT_CAMERA_INFO = False
 
 ID = 1
 SEQ = 0
 MARKER_SIZE = 0.04
-
-
-def is_locked(msg):
-    global IS_LOCKED
-    IS_LOCKED = msg.data
 
 
 def get_stamped_pose(translation, rotation):
@@ -46,43 +38,42 @@ def get_stamped_pose(translation, rotation):
 
 
 def image_analyser(msg, detector, publisher):
-    global IS_LOCKED
     global SEQ
 
-    bridge = CvBridge()
-    img = bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    if IS_ALLOWED:
+        bridge = CvBridge()
+        img = bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    object_pose = None
+        object_pose = None
 
-    start = time.time()
+        start = time.time()
 
-    (corners, ids, rejected) = detector.detectMarkers(gray)
-    print(ids)
-    print(corners)
+        (corners, ids, rejected) = detector.detectMarkers(gray)
 
-    if ids is not None:
-        for i in range(0, len(ids)):
-            if ids[i][0] == ID:
-                rvecs, tvecs, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], MARKER_SIZE, CAMERA_MATRIX,
-                                                                                 DISTORTION_MATRIX)
+        if ids is not None:
+            for i in range(0, len(ids)):
+                if ids[i][0] == ID:
+                    rvecs, tvecs, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], MARKER_SIZE, CAMERA_MATRIX,
+                                                                                     DISTORTION_MATRIX)
 
-                tvec = tvecs[0, 0]
-                print(tvec)
-                # tvec = np.flip(tvec)
-                tvec = [tvec[2], -tvec[0], -tvec[1]]
-                print(tvec)
-                rvec = tf.transformations.quaternion_from_euler(0, 0, -rvecs[0, 0, 2])
+                    tvec = tvecs[0, 0]
+                    tvec = [tvec[2], -tvec[0], -tvec[1]]
+                    rvec = tf.transformations.quaternion_from_euler(rvecs[0, 0, 0], rvecs[0, 0, 1], rvecs[0, 0, 2])
+                    rvec[2] = -rvec[2]
 
-                object_pose = get_stamped_pose(tvec, rvec)
+                    object_pose = get_stamped_pose(tvec, rvec)
 
-                IS_LOCKED = True
+                    publisher.publish(object_pose)
 
-                publisher.publish(object_pose)
+        end = time.time()
+        rospy.loginfo('Computing time : %f', end - start)
+        rospy.loginfo(object_pose)
 
-    end = time.time()
-    rospy.loginfo('Computing time : %f', end - start)
-    rospy.loginfo(object_pose)
+
+def is_allowed(msg):
+    global IS_ALLOWED
+    IS_ALLOWED = msg.data
 
 
 def camera_info_callback(msg):
@@ -106,6 +97,7 @@ def alfred_vision():
     rospy.init_node('alfred_vision', anonymous=True)
 
     sub = rospy.Subscriber('/camera/camera_info', CameraInfo, camera_info_callback)
+    rospy.Subscriber('/alfred/allow_vision', Bool, is_allowed)
 
     image_analyser_partial = partial(image_analyser, detector=detector, publisher=pub)
     rospy.Subscriber("/camera/image", Image, image_analyser_partial)

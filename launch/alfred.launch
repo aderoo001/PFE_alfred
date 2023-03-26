@@ -1,19 +1,15 @@
 <launch>
   <arg name="open_rviz" default="true"/>
+  <arg name="map_file" default="$(find alfred)/maps/map.yaml"/>
 
   <!-- manipulation bringup -->
   <include file="$(find turtlebot3_manipulation_bringup)/launch/turtlebot3_manipulation_bringup.launch"/>
 
-  <!-- slam -->
-  <include file="$(find turtlebot3_manipulation_slam)/launch/slam.launch">
+  <!-- navigation -->
+  <include file="$(find turtlebot3_manipulation_navigation)/launch/navigation.launch">
     <arg name="open_rviz" value="false" />
+    <arg name="map_file" value="$(arg map_file)" />
   </include>
-
-  <!-- move_base -->
-  <include file="$(find turtlebot3_navigation)/launch/move_base.launch"/>
-
-  <!-- amcl -->
-  <include file="$(find turtlebot3_navigation)/launch/amcl.launch"/>
 
   <!-- moveit -->
   <include file="$(find turtlebot3_manipulation_moveit_config)/launch/move_group.launch"/>
@@ -29,4 +25,13 @@
 
   <!-- alfred_tf_broadcast -->
   <node pkg="alfred" type="alfred_tf_broadcaster.py" name="alfred_tf_broadcast"/>
+
+  <!-- alfred_manipulation -->
+  <node pkg="alfred" type="alfred_manipulation.py" name="alfred_manipulation"/>
+
+  <!-- alfred_navigation -->
+  <node pkg="alfred" type="alfred_navigation.py" name="alfred_navigation"/>
+
+  <!-- alfred_interface -->
+  <node pkg="alfred" type="alfred_interface.py" name="alfred_interface"/>
 </launch>

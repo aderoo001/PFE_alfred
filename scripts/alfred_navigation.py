@@ -7,10 +7,17 @@ import tf
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import Bool
 
-IS_FOUND = False
 TARGET_FRAME = 'goal_frame'
 MAP_FRAME = 'map'
+
+IS_ALLOWED = False
+IS_FOUND = False
 SEQ = 0
+
+
+def is_allowed(msg):
+    global IS_ALLOWED
+    IS_ALLOWED = msg.data
 
 
 def alfred_navigation():
@@ -22,13 +29,14 @@ def alfred_navigation():
     rospy.init_node('alfred_navigation')
     rate = rospy.Rate(30)
 
+    rospy.Subscriber('/alfred/allow_navigation', Bool, is_allowed)
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     client.wait_for_server()
 
     listener = tf.TransformListener()
 
     while not IS_FOUND:
-        if listener.canTransform(MAP_FRAME, TARGET_FRAME, rospy.Time()):
+        if listener.canTransform(MAP_FRAME, TARGET_FRAME, rospy.Time()) and IS_ALLOWED:
             (trans, rot) = listener.lookupTransform(MAP_FRAME, TARGET_FRAME, rospy.Time(0))
 
             goal = MoveBaseGoal()
@@ -43,8 +51,8 @@ def alfred_navigation():
 
             goal.target_pose.pose.orientation.x = 0
             goal.target_pose.pose.orientation.y = 0
-            goal.target_pose.pose.orientation.z = -rot[2]
-            goal.target_pose.pose.orientation.w = -rot[3]
+            goal.target_pose.pose.orientation.z = 0
+            goal.target_pose.pose.orientation.w = 1
             rospy.loginfo(goal)
 
             client.send_goal(goal)

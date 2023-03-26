@@ -56,7 +56,6 @@ find_package(OpenCV 4 REQUIRED)
 ## Generate messages in the 'msg' folder
 add_message_files(
   FILES
-  ObjectPose.msg
 )
 
 ## Generate services in the 'srv' folder
